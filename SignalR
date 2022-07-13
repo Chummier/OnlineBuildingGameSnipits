@@ -1,0 +1,75 @@
+// Snipits of how the user's interactions with the game are sent to game in C# through SignalR.
+// When opening/closing the page that uses game.js, the SignalR Hub updates current connections.
+// It also transmits user input to the game, like when the player presses W, A, S, or D to move their character.
+
+public class GameHub: Hub {
+        private readonly GameWorld _world;
+        private readonly LoginManager _loginManager;
+        ...
+        public override async Task OnConnectedAsync() {
+            await Groups.AddToGroupAsync(Context.ConnectionId, Context.User.Identity.Name);
+            _loginManager.AddConnection(Context.User.Identity.Name);
+        }
+
+        public override async Task OnDisconnectedAsync(Exception exception) {
+            _loginManager.RemoveConnection(Context.User.Identity.Name);
+        }
+
+        public async Task GetMovementInput(int Vx, int Vy) {
+            _world.Move(0, Context.User.Identity.Name, Vx, Vy);
+        }
+
+        public async Task SwapItems(string typeA, string typeB, int indexA, int indexB) {
+            _world.SwapItems(Context.User.Identity.Name, typeA, typeB, indexA, indexB);
+        }
+
+        public async Task SendMessage(string from, string msg) {
+            if (!msg.Equals("")) {
+                _world.AddChatMsg(from, msg);
+            }
+        }
+        ...
+    }
+    
+game.js:
+
+    var connection = new signalR.HubConnectionBuilder().withUrl("/gameHub", {
+       accessTokenFactory: () => this.loginToken
+    }).build();
+
+    connection.on("GetPlayers", function (playerNames, positionsY, positionsX, msgs) {
+       DrawPlayers(playerNames, positionsY, positionsX, msgs);
+    });
+    ...
+    
+    var map = {};
+    onkeydown = onkeyup = function (e) {
+      e = e || this.event;
+      map[e.keyCode] = e.type == 'keydown';
+    }
+
+    window.setInterval(CheckKeys, 10);
+
+    function CheckKeys() {
+        var Vx = 0;
+        var Vy = 0;
+
+        if (map[87]) { // w
+            Vy = -1;
+        }
+        if (map[65]) { // a
+            Vx = -1;
+        }
+        if (map[83]) { // s
+            Vy = 1;
+        }
+        if (map[68]) { // d
+            Vx = 1;
+        }
+        ...
+        if (canMove) {
+            connection.invoke("GetMovementInput", Vx, Vy).catch(function (err) {
+                return console.error(err.toString());
+            });
+        }
+}

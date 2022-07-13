@@ -1,0 +1,103 @@
+// Snipits from multiple classes that work together:
+// First 3 classes are Models for EntityFrameworkCore
+// Next class is the DbContext that sets up the tables for the database
+// Each table is a list of its respective Model
+// And finally is the main class for the game, that loads from and writes to
+// the database by using the Models
+
+public class MapDataModel {
+    [DatabaseGeneratedAttribute(DatabaseGeneratedOption.Identity)]
+    [Key]
+    public int Id { get; set; }
+    public int MapId { get; set; }
+    public int TileId { get; set; }
+    public int PosX { get; set; }
+    public int PosY { get; set; }
+    ...
+}
+
+public class InventoryDataModel {
+    [DatabaseGeneratedAttribute(DatabaseGeneratedOption.Identity)]
+    [Key]
+    public int Id { get; set; }
+    public int InvId { get; set; }
+    public string ItemName { get; set; }
+    public int Amount { get; set; }
+    public int Position { get; set; }
+    ...
+}
+
+public class PlayerModel {
+    [Key]
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public int MapId { get; set; }
+    public int InventoryId { get; set; }
+    public int HotbarId { get; set; }
+    ...
+}
+
+public class GameDbContext: DbContext {
+    ...
+    public DbSet<MapDataModel> MapData { get; set; }
+    public DbSet<InventoryDataModel> InventoryData { get; set; }
+    public DbSet<PlayerModel> Players { get; set; }  
+}
+
+public class GameWorld {
+    ...
+    private void Save(Object source, ElapsedEventArgs e) {
+            using (var scope = _serviceProvider.CreateScope()) {
+                var _db = scope.ServiceProvider.GetService<GameDbContext>();
+                string query;
+
+                // Save Maps
+                query = "DELETE FROM dbo.Maps WHERE MapId = " + WorldId;
+                _db.Database.ExecuteSqlRaw(query);
+                _db.Maps.Add(new MapModel(WorldId, "Admin", "Main", rows, cols, 3, 0, 0, 1));
+
+                var map = _db.MapData.Where(d => d.MapId == WorldId).OrderBy(t => t.Layer).ThenBy(t => t.PosY).ThenBy(t => t.PosX).ToList();
+                var MainMap = Maps.ToList(WorldId);
+                for (int i = 0; i < map.Count; i++) {
+                    ...
+                }
+                _db.MapData.UpdateRange(map);
+
+                // Save Player Inventory/Hotbar Data
+                foreach (int key in ActiveInventories.Keys) {
+                    query = "DELETE FROM dbo.InventoryData WHERE InvId = " + key;
+                    _db.Database.ExecuteSqlRaw(query);
+                    foreach (InventoryDataModel m in ActiveInventories[key]) {
+                        _db.InventoryData.Add(new InventoryDataModel(m.InvId, m.ItemName, m.Amount, m.Position));
+                    }
+                }
+
+                _db.SaveChanges();
+            }
+        }
+        
+    ...
+        
+    public void LoginPlayer(string player) {
+            ...
+            using (var scope = _serviceProvider.CreateScope()) {
+                var _db = scope.ServiceProvider.GetService<GameDbContext>();
+
+                var res = from p in _db.Players
+                          where p.Name == player
+                          select p;
+
+                // If is a new player
+                if (res.Count() == 0) {
+                    ...
+
+                    PlayerModel p = new PlayerModel(player, WorldId, invId, hotbarId);
+                    
+                    _db.Players.Add(p);
+
+                    _db.Inventories.Add(new InventoryModel(invId, InventorySize));
+                    _db.Inventories.Add(new InventoryModel(hotbarId, HotbarSize));
+                    _db.SaveChanges();          
+            ...
+        }
+}

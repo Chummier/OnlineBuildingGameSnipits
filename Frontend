@@ -1,0 +1,125 @@
+// Snipits showing the interaction between the main page for the game and the underlying javascript.
+// Includes examples of styling with CSS, page layout with HTML, and then javascript interacting
+// with HTML elements. Javascript communicates with C# through SignalR in this game.
+Main.cshtml:
+
+  <style>
+    .navbar {
+        position: absolute;
+        background-color: white;
+        z-index: 1;
+    }
+    .navbar li {
+        color: black;
+        text-align: right;
+        float: right;
+        list-style-type: none;
+    }
+    
+    .hotbar{
+        position:absolute;
+        top: 80%;
+        right: 50%;
+    }
+    .hotbar td{
+        background-color: white;
+    } 
+    ...
+  </style>
+  
+  <body>
+    <header>
+        <div class="navbar">
+            <ul>
+                <li><input id="InventoryButton" type="button" value="Inventory" /></li>
+                <li><input id="ChatButton" type="button" value="Chat" /></li>
+                <li><input id="MenuButton" type="button" value="Menu" /></li>
+                <li><input type="range" min="1" max="6" value="3" id="ScaleSlider" /></li>
+                <li><input id="Username" value="@ViewData["UserName"]" hidden disabled /></li>
+            </ul>
+        </div>
+    </header>
+    
+    <table class="hotbar" id="HotbarTable">
+            <tr>
+                @for (int i = 0; i < 5; i++)
+                {
+                    string id1 = "h" + i;
+                    string id2 = "hi" + i;
+                    string id3 = "hp" + i;
+                    <td id="@id1" onclick="SelectHotbarSwap(@i)">
+                        <img id="@id2" />
+                        <p id="@id3"></p>
+                    </td>
+
+                }
+            </tr>
+    </table>
+    ...
+  </body>
+  <script src="~/js/game.js"></script>
+  
+game.js:
+
+  ...
+  function LoadHotbar() {
+    for (let i = 0; i < 5; i++) {
+        var td = document.getElementById("h" + i);
+        var img = document.getElementById("hi" + i);
+        var p = document.getElementById("hp" + i);
+
+        img.src = "/images/items/" + hotbarItemNames[i] + ".png";
+        p.innerHTML = hotbarItemAmounts[i];
+    }
+  }
+  
+  function PositionUI() {
+    ...
+    inventoryTable.style.top = canvasCoords.top + 100;
+    inventoryTable.style.left = canvasCoords.left;
+
+    //hotbarTable.style.top = '200px';
+    //hotbarTable.style.left = '200px';
+
+    chatInput.style.left = imgSize * radiusX;
+    chatInput.style.top = imgSize * radiusY;
+  }
+  
+  function DrawWorld(world, numLayers, worldRows, worldCols, centerX, centerY) {
+    ...
+    var m = Math.floor(centerY - radiusY);
+    var n = Math.floor(centerX - radiusX); // top left [m][n] of the game world- [3][3] for example
+
+    var offsetY = (centerY - Math.floor(centerY)) * imgSize;
+    var offsetX = (centerX - Math.floor(centerX)) * imgSize;
+
+    for (let y = 0 - offsetY; y < gameCanvas.height; y += imgSize) {
+        for (let x = 0 - offsetX; x < gameCanvas.width; x += imgSize) {
+            if (m < 0 || n < 0) {
+                img = document.getElementById("Air.png");
+                ctx.drawImage(img, x, y, imgSize, imgSize);
+                
+            } else if (m >= worldRows || n >= worldCols) {
+                img = document.getElementById("Air.png");
+                ctx.drawImage(img, x, y, imgSize, imgSize);
+                
+            } else {
+                ...
+                for (let l = 0; l < numLayers; l++) {
+                    if (m == worldTargetM && n == worldTargetN) {
+                        ctx.strokeRect(x, y, imgSize, imgSize);
+                    }
+                    img = document.getElementById(world[l][m][n]);
+                    ctx.drawImage(img, x, y, imgSize, imgSize);
+                }
+            }
+            n++;
+        }
+        n = Math.floor(centerX - radiusX);
+        m++;
+    }
+
+    img = document.getElementById("Player.png");
+    ctx.drawImage(img, radiusX * imgSize, radiusY * imgSize, imgSize, imgSize);
+    ctx.strokeText(username, radiusX * imgSize + imgSize/4, radiusY * imgSize + imgSize/4);
+  }
